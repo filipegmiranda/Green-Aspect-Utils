@@ -1,6 +1,7 @@
 package org.greentea.aspect.log;
 
 import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,30 +43,25 @@ public class LoggableObjects {
 		String methodName = methodSignature.getName();
 		Object[] args = proJoinPoint.getArgs();
 
+		int loadedClasses = 0;
 		Class<?> clazzTypes[] = new Class[args.length];
 		for (int i = 0; i < args.length; i++) {
 			Class<?> clazz = null;
-			int loadedClasses = 0;
 			if (args[i] == null) {
-				System.out.println("value of arg:\n" + args[i]);
-				
 				String completeSignature = methodSignature.toLongString();
-
-				System.out.println("n\n"+completeSignature+"\n\n");
 				
 				Pattern p = Pattern
 						.compile("[\\w+.-]+([a-zA-Z_$][a-zA-Z\\d_$]*\\.)*[a-zA-Z_$][a-zA-Z\\d_$]*");
 
 				Matcher m = p.matcher(completeSignature);
 				
-				
 				m.find();
 				m.find();
 				m.find();
-				
 				int pos = 0;
 				while(pos < loadedClasses){
 					m.find();
+					System.out.println("\n\nInside while: "+m.group());
 					pos++;
 				}
 				m.find();
@@ -77,9 +73,6 @@ public class LoggableObjects {
 				clazz = args[i].getClass();
 				loadedClasses++;
 			}
-			
-			System.out.println("\n\n"+clazz+"\n\n");
-
 			clazzTypes[i] = clazz;
 		}
 
@@ -97,7 +90,7 @@ public class LoggableObjects {
 		boolean profileMode = false;
 		boolean argsMode = false;
 		boolean methodMode = false;
-
+		
 		loModesLoop: for (int i = 0; i < logModes.length; i++) {
 			switch (logModes[i]) {
 			case ALL:
@@ -131,6 +124,7 @@ public class LoggableObjects {
 					declaringClass));
 		}
 
+		
 		if (argsMode && args.length > 0) {
 			logger.info(String.format("Arguments of method %s are: %s",
 					methodName, java.util.Arrays.toString(args)));
