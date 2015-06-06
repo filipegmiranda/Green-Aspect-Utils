@@ -1,7 +1,8 @@
 package org.greentea.aspect.log;
 
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,6 +26,14 @@ import org.greentea.aspect.log.annotation.LoggableObject;
 @Aspect
 public class LoggableObjects {
 
+	PluggableLogger pluggableLogger;
+	
+	public static ConcurrentMap<Class<? extends PluggableLogger>, PluggableLogger> cachedLoggers = new ConcurrentHashMap<>();
+	
+	static{
+		cachedLoggers.putIfAbsent(DefaultPluggableLoggerIfNotInjected.class, new DefaultPluggableLoggerIfNotInjected());
+	}
+	
 	/**
 	 * Captures the Annotations {@link LoggableObjects}
 	 * 
@@ -43,6 +52,93 @@ public class LoggableObjects {
 		String methodName = methodSignature.getName();
 		Object[] args = proJoinPoint.getArgs();
 
+		LoggableObject loggObject = getLoggableObjectAnnt(args, methodSignature);
+
+		if (loggObject.disable()) {
+			return proJoinPoint.proceed();
+		}
+		
+		Class<? extends PluggableLogger> clazzPluggLogg = loggObject.pluggableLoggerClass();
+		
+		if(clazzPluggLogg != DefaultPluggableLoggerIfNotInjected.class){
+			if(cachedLoggers.containsKey(clazzPluggLogg)){
+				pluggableLogger = cachedLoggers.get(clazzPluggLogg);
+			}else{
+				pluggableLogger = clazzPluggLogg.newInstance();
+				cachedLoggers.putIfAbsent(clazzPluggLogg, pluggableLogger);
+			}
+		}else{
+			pluggableLogger = cachedLoggers.get(clazzPluggLogg);
+		}
+
+		LoggableObject.LogModes[] logModes = loggObject.logMode();
+
+		boolean profileMode = false;
+		boolean argsMode = false;
+		boolean methodMode = false;
+		
+		logModesLoop: for (int i = 0; i < logModes.length; i++) {
+			switch (logModes[i]) {
+			case ALL:
+				profileMode = true;
+				argsMode = true;
+				methodMode = true;
+				break logModesLoop;
+			case PROFILE:
+				profileMode = true;
+				break;
+			case METHOD_NAME:
+				methodMode = true;
+				break;
+			case ARGS:
+				argsMode = true;
+				break;
+			default:
+				throw new AssertionError("Operation not supported. "
+						+ logModes[i].name());
+			}
+		}
+
+		PluggableLogger logger = pluggableLogger;
+
+		// getting modifiers
+		if (methodMode || argsMode) {
+			logger.logInfo(String.format(
+					"Entering execution of method %s, of class %s", methodName,
+					declaringClass));
+		}
+
+		
+		if (argsMode && args.length > 0) {
+			logger.logInfo(String.format("Arguments of method %s are: %s",
+					methodName, java.util.Arrays.toString(args)));
+		}
+
+		Object returnObject;
+		try {
+			long startNanoTime = System.nanoTime();
+			returnObject = proJoinPoint.proceed();
+			long execTime = System.nanoTime() - startNanoTime;
+			if (profileMode) {
+				logger.logInfo(String.format(
+						"Finished execution of %s in %s nanoTime", methodName,
+						execTime));
+			}
+		} catch (Exception e) {
+			logger.logError("\nException in the method " + methodName
+					+ " of class: " + methodSignature.getDeclaringTypeName());
+			if (!loggObject.exceptionOnlyToExceptions()) {
+				throw e;
+			}
+			logger.logWarning("Exception " + e + " supressed. Setting returning value to null...");
+			
+			returnObject = null;
+		}
+		return returnObject;
+	}
+	
+	@SuppressWarnings("unchecked")
+	private LoggableObject getLoggableObjectAnnt(Object[] args, Signature methodSignature) throws Exception{
 		int loadedClasses = 0;
 		Class<?> clazzTypes[] = new Class[args.length];
 		for (int i = 0; i < args.length; i++) {
@@ -61,12 +157,10 @@ public class LoggableObjects {
 				int pos = 0;
 				while(pos < loadedClasses){
 					m.find();
-					System.out.println("\n\nInside while: "+m.group());
 					pos++;
 				}
 				m.find();
 				String clazzName = m.group();
-				System.out.println(clazzName);
 				clazz = Class.forName(clazzName);
 				loadedClasses++;
 			}else{
@@ -76,79 +170,47 @@ public class LoggableObjects {
 			clazzTypes[i] = clazz;
 		}
 
-		@SuppressWarnings("unchecked")
-		LoggableObject loggObject = methodSignature.getDeclaringType()
-				.getDeclaredMethod(methodName, clazzTypes)
+		
+		return methodSignature.getDeclaringType()
+				.getDeclaredMethod(methodSignature.getName(), clazzTypes)
 				.getAnnotation(LoggableObject.class);
 
-		if (loggObject.disable()) {
-			return proJoinPoint.proceed();
+	}
+	
+	/**
+	 * Default implementation of {@link PluggableLogger} using
+	 * {@link java.util.logging.Logger} internally to Log msgs
+	 * @author Filipe Gonzaga Miranda
+	 */
+	public static class DefaultPluggableLoggerIfNotInjected implements PluggableLogger{
+
+		@Override
+		public void logInfo(String msg) {
+			Logger logger = Logger.getLogger("greentea.logger");
+			logger.log(Level.INFO, msg);
 		}
 
-		LoggableObject.LogModes[] logModes = loggObject.logMode();
+		@Override
+		public void logError(String msg) {
+			Logger logger = Logger.getLogger("greentea.logger");
+			logger.log(Level.SEVERE, msg);
+		}
 
-		boolean profileMode = false;
-		boolean argsMode = false;
-		boolean methodMode = false;
+		@Override
+		public void logWarning(String msg) {
+			Logger logger = Logger.getLogger("greentea.logger");			
+			logger.log(Level.WARNING, msg);
+		}
+
+		@Override
+		public PluggableLogger getForCache() {
+			return this;
+		}
 		
-		loModesLoop: for (int i = 0; i < logModes.length; i++) {
-			switch (logModes[i]) {
-			case ALL:
-				profileMode = true;
-				argsMode = true;
-				methodMode = true;
-				break loModesLoop;
-			case PROFILE:
-				profileMode = true;
-				break;
-			case METHOD_NAME:
-				methodMode = true;
-				break;
-			case ARGS:
-				argsMode = true;
-				break;
-			default:
-				throw new AssertionError("Operation not supported. "
-						+ logModes[i].name());
-			}
+		@Override
+		public String toString() {
+			return "DefaultPluggableLoggerIfNotInjected - It has a java.util.logging.Logger";
 		}
-
-		// TODO support different strategies for log
-		Logger logger = Logger.getLogger("greentea.logger");
-		//
-
-		// getting modifiers
-		if (methodMode || argsMode) {
-			logger.info(String.format(
-					"Entering execution of method %s, of class %s", methodName,
-					declaringClass));
-		}
-
-		
-		if (argsMode && args.length > 0) {
-			logger.info(String.format("Arguments of method %s are: %s",
-					methodName, java.util.Arrays.toString(args)));
-		}
-
-		Object returnObject;
-		try {
-			long startNanoTime = System.nanoTime();
-			returnObject = proJoinPoint.proceed();
-			long execTime = System.nanoTime() - startNanoTime;
-			if (profileMode) {
-				logger.info(String.format(
-						"Finished execution of %s in %s nanoTime", methodName,
-						execTime));
-			}
-		} catch (Exception e) {
-			logger.info("\nException in the method " + methodName
-					+ " of class: " + methodSignature.getDeclaringTypeName());
-			if (!loggObject.exceptionOnlyToExceptions()) {
-				throw e;
-			}
-			returnObject = null;
-		}
-		return returnObject;
 	}
 
 }

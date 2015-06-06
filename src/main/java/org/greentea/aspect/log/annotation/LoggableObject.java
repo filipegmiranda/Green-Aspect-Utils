@@ -6,6 +6,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import org.greentea.aspect.log.LoggableObjects;
+import org.greentea.aspect.log.PluggableLogger;
+
 /**
  * Use this annotation in every method you want to track
  * information, configuring different level logs
@@ -45,6 +48,20 @@ public @interface LoggableObject{
 	 * @return true if the log is disabled, false otherwise
 	 */
 	boolean disable() default false;
+	
+	
+	/**
+	 * Defines the class that should be used to Log, this annotation has its Default to LoggableObjects.DefaultPluggableLoggerIfNotInjected
+	 * Which means, if you did not define a default Logger for the LOg, the Green Context will Default to this class
+	 * But you still can define other classes for particulars methods and the Context will override any Default {@link PluggableLogger}
+	 * 
+	 * The default uses the {@link java.util.logging.Logger}
+	 * 
+	 * @return The Class Defined to Control How to Log
+	 * @see PluggableLogger
+	 */
+	Class<? extends PluggableLogger> pluggableLoggerClass() default LoggableObjects.DefaultPluggableLoggerIfNotInjected.class;
+	
 	
 	/**
 	 * The LogModes Availaible
