@@ -35,36 +35,20 @@ public class LoggableTest {
 	
 	@Test
 	public void logAnnotMethodsInDifferentModes(){
-		System.out.println("\n\n\n\nTesting this amazing API...\n\n Testing methodWithArgumentsAndReturnType - LogMode.ALL");
 		methodWithArgumentsAndReturnType(null, null, null, null, null);
-		
-		System.out.println("\n\n----");
-		
-		System.out.println("Testing methodWithNoReturn - LogMode.ALL");
 		methodWithNoReturn();
-		
-		
-		System.out.println("\n\n----");
 		checkCache();
 	}
 	
 	@Test
 	public void testPluggLoggerClasses(){
-		System.out.println("\n--------Testing custom Logger classes");
 		testOtherPluggableLoggerClasses();
-		System.out.println("\n--------");
-		System.out.println("Size of Cached Map with Loggers: " + LoggableObjects.cachedLoggers.size());
-		System.out.println("\n--------");
 		System.out.println("Chached Map String: "+LoggableObjects.cachedLoggers);
-		System.out.println("\n--------");
 		System.out.println("--------- Testing Logglable methods with default or system default Pluggable Logger");
 		methodWithNoReturn();
 	}
 	
 	private void checkCache(){
-		System.out.println("\n--------");
-		System.out.println("Size of Cached Map with Loggers: " + LoggableObjects.cachedLoggers.size());
-		System.out.println("\n--------");
 		System.out.println("Chached Map String: "+LoggableObjects.cachedLoggers);
 	}
 
