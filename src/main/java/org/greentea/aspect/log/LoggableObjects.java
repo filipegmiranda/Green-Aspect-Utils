@@ -26,9 +26,12 @@ import org.greentea.aspect.log.annotation.LoggableObject;
 @Aspect
 public class LoggableObjects {
 
-	PluggableLogger pluggableLogger;
+	//PluggableLogger pluggableLogger;
 	
 	public static ConcurrentMap<Class<? extends PluggableLogger>, PluggableLogger> cachedLoggers = new ConcurrentHashMap<>();
+	
+	private static final Pattern pMethodsName = Pattern
+			.compile("[\\w+.-]+([a-zA-Z_$][a-zA-Z\\d_$]*\\.)*[a-zA-Z_$][a-zA-Z\\d_$]*");
 	
 	static{
 		cachedLoggers.putIfAbsent(DefaultPluggableLoggerIfNotInjected.class, new DefaultPluggableLoggerIfNotInjected());
@@ -58,17 +61,20 @@ public class LoggableObjects {
 			return proJoinPoint.proceed();
 		}
 		
+		PluggableLogger logger;
+
+		
 		Class<? extends PluggableLogger> clazzPluggLogg = loggObject.pluggableLoggerClass();
 		
 		if(clazzPluggLogg != DefaultPluggableLoggerIfNotInjected.class){
 			if(cachedLoggers.containsKey(clazzPluggLogg)){
-				pluggableLogger = cachedLoggers.get(clazzPluggLogg);
+				logger = cachedLoggers.get(clazzPluggLogg);
 			}else{
-				pluggableLogger = clazzPluggLogg.newInstance();
-				cachedLoggers.putIfAbsent(clazzPluggLogg, pluggableLogger);
+				logger = clazzPluggLogg.newInstance();
+				cachedLoggers.putIfAbsent(clazzPluggLogg, logger);
 			}
 		}else{
-			pluggableLogger = cachedLoggers.get(clazzPluggLogg);
+			logger = cachedLoggers.get(clazzPluggLogg);
 		}
 
 		LoggableObject.LogModes[] logModes = loggObject.logMode();
@@ -99,7 +105,6 @@ public class LoggableObjects {
 			}
 		}
 
-		PluggableLogger logger = pluggableLogger;
 
 		// getting modifiers
 		if (methodMode || argsMode) {
@@ -145,11 +150,8 @@ public class LoggableObjects {
 			Class<?> clazz = null;
 			if (args[i] == null) {
 				String completeSignature = methodSignature.toLongString();
-				
-				Pattern p = Pattern
-						.compile("[\\w+.-]+([a-zA-Z_$][a-zA-Z\\d_$]*\\.)*[a-zA-Z_$][a-zA-Z\\d_$]*");
 
-				Matcher m = p.matcher(completeSignature);
+				Matcher m = pMethodsName.matcher(completeSignature);
 				
 				m.find();
 				m.find();
